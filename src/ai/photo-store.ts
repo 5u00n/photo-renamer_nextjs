@@ -12,7 +12,7 @@ export interface Photo {
 }
 
 // In-memory array to store photos
-const photos: Photo[] = [];
+let photos: Photo[] = [];
 
 /**
  * Adds a new photo to the store.
@@ -28,4 +28,12 @@ export function addPhoto(photo: Photo): void {
  */
 export function getAllPhotos(): Photo[] {
   return [...photos];
+}
+
+/**
+ * Deletes a photo from the store by its name.
+ * @param name The name of the photo to delete.
+ */
+export function deletePhoto(name: string): void {
+  photos = photos.filter(p => p.name !== name);
 }

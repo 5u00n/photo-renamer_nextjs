@@ -1,14 +1,16 @@
 'use client';
 
-import { useEffect, useState, FormEvent } from 'react';
+import { useEffect, useState, FormEvent, useCallback } from 'react';
 import { getPhotos, Photo } from '@/ai/flows/get-photos-flow';
+import { deletePhoto } from '@/ai/flows/delete-photo-flow';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Download, RefreshCw, ServerCrash, Lock } from 'lucide-react';
+import { ArrowLeft, Download, RefreshCw, ServerCrash, Lock, Trash2, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 export default function AdminPage() {
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -18,7 +20,7 @@ export default function AdminPage() {
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const fetchPhotos = async () => {
+  const fetchPhotos = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -30,24 +32,34 @@ export default function AdminPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {
       fetchPhotos();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, fetchPhotos]);
 
   const handleDownload = (photo: Photo) => {
     const link = document.createElement('a');
     link.href = photo.dataUri;
-    const fileExtension = photo.dataUri.split(';')[0].split('/')[1];
+    const fileExtension = photo.dataUri.split(';')[0].split('/')[1] || 'png';
     link.download = `${photo.name}.${fileExtension}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
   
+  const handleDelete = async (photoName: string) => {
+    try {
+      await deletePhoto({ name: photoName });
+      setPhotos((prevPhotos) => prevPhotos.filter((p) => p.name !== photoName));
+    } catch (err) {
+      setError(`Failed to delete photo: ${photoName}. Please try again.`);
+      console.error(err);
+    }
+  };
+
   const handlePasswordSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (password === 'Ssuren78626@@') {
@@ -66,25 +78,25 @@ export default function AdminPage() {
                     <CardTitle className="text-2xl flex items-center gap-2">
                         <Lock className="w-6 h-6"/> Admin Access
                     </CardTitle>
-                    <CardContent className="pt-4 px-0 pb-0">
-                        <form onSubmit={handlePasswordSubmit} className="space-y-4">
-                            <Input 
-                                type="password" 
-                                placeholder="Enter password" 
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                            />
-                            {authError && (
-                                <Alert variant="destructive" className="p-2 text-sm">
-                                  <AlertDescription>{authError}</AlertDescription>
-                                </Alert>
-                            )}
-                            <Button type="submit" className="w-full">
-                                Unlock
-                            </Button>
-                        </form>
-                    </CardContent>
                 </CardHeader>
+                <CardContent className="pt-4 pb-0">
+                    <form onSubmit={handlePasswordSubmit} className="space-y-4">
+                        <Input 
+                            type="password" 
+                            placeholder="Enter password" 
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                        />
+                        {authError && (
+                            <Alert variant="destructive" className="p-2 text-sm">
+                              <AlertDescription>{authError}</AlertDescription>
+                            </Alert>
+                        )}
+                        <Button type="submit" className="w-full">
+                            Unlock
+                        </Button>
+                    </form>
+                </CardContent>
             </Card>
         </div>
     );
@@ -123,7 +135,7 @@ export default function AdminPage() {
                 </CardContent>
                 <CardFooter className="flex justify-between items-center">
                     <Skeleton className="h-4 w-1/2" />
-                    <Skeleton className="h-10 w-10 rounded-md" />
+                    <Skeleton className="h-10 w-24" />
                 </CardFooter>
               </Card>
             ))}
@@ -160,9 +172,30 @@ export default function AdminPage() {
                     <p className="text-sm text-muted-foreground">
                         {new Date(photo.uploadedAt).toLocaleDateString()}
                     </p>
-                  <Button size="icon" variant="outline" onClick={() => handleDownload(photo)}>
-                    <Download className="h-4 w-4" />
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button size="icon" variant="outline" onClick={() => handleDownload(photo)} title="Download">
+                      <Download className="h-4 w-4" />
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="icon" variant="destructive" title="Delete">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle className="flex items-center gap-2"><ShieldAlert />Are you sure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete the photo for "{photo.name}" from the server.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDelete(photo.name)}>Continue</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </CardFooter>
               </Card>
             ))}
