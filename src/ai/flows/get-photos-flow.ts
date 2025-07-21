@@ -13,7 +13,7 @@ import { getAllPhotos, Photo as StoredPhoto } from '@/ai/photo-store';
 const PhotoSchema = z.object({
   name: z.string(),
   dataUri: z.string(),
-  uploadedAt: z.date(),
+  uploadedAt: z.string().datetime(),
 });
 
 export type Photo = z.infer<typeof PhotoSchema>;
@@ -28,11 +28,12 @@ const getPhotosFlow = ai.defineFlow(
   },
   async () => {
     const photos = getAllPhotos();
-    return photos;
+    // The date is converted to an ISO string during serialization
+    return photos.map(p => ({...p, uploadedAt: p.uploadedAt.toISOString()})) as any;
   }
 );
 
-export async function getPhotos(): Promise<StoredPhoto[]> {
+export async function getPhotos(): Promise<Photo[]> {
   const result = await getPhotosFlow();
   return result;
 }
