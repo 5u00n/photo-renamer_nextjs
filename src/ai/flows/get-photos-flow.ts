@@ -34,9 +34,8 @@ const getPhotosFlow = ai.defineFlow(
 );
 
 export async function getPhotos(): Promise<Photo[]> {
-  // We call the flow, but return the original data from the store
-  // so the UI gets the Date object it expects.
-  // The flow is still useful for validation and potential future logic.
-  await getPhotosFlow();
-  return getAllPhotos();
+  // We call the flow and return its result, converting the ISO string
+  // back to a Date object for the UI.
+  const result = await getPhotosFlow();
+  return result.map(p => ({...p, uploadedAt: new Date(p.uploadedAt)}));
 }
