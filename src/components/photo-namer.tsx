@@ -20,6 +20,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Upload,
   Save,
@@ -27,10 +28,13 @@ import {
   CheckCircle2,
   RotateCw,
   Info,
+  Camera,
+  RefreshCcw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { savePhoto, SavePhotoInput } from "@/ai/flows/save-photo-flow";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useToast } from "@/hooks/use-toast";
 
 const fileToDataUri = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -41,6 +45,17 @@ const fileToDataUri = (file: File): Promise<string> => {
   });
 };
 
+const dataUriToBlob = (dataURI: string) => {
+    const byteString = atob(dataURI.split(',')[1]);
+    const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+    }
+    return new Blob([ab], { type: mimeString });
+};
+
 export function PhotoNamer() {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -49,14 +64,55 @@ export function PhotoNamer() {
   const [isSaved, setIsSaved] = useState<boolean>(false);
   const [dragOver, setDragOver] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [isNameModalOpen, setIsNameModalOpen] = useState(false);
   const [tempName, setTempName] = useState("");
+  const [mode, setMode] = useState<'upload' | 'camera'>('upload');
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const { toast } = useToast();
 
+  useEffect(() => {
+    if (mode === 'camera' && !previewUrl) {
+      const getCameraPermission = async () => {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+           setError("Camera not supported on this browser.");
+           setHasCameraPermission(false);
+           return;
+        }
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          setHasCameraPermission(true);
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+          }
+        } catch (error) {
+          console.error('Error accessing camera:', error);
+          setHasCameraPermission(false);
+          toast({
+            variant: 'destructive',
+            title: 'Camera Access Denied',
+            description: 'Please enable camera permissions in your browser settings.',
+          });
+        }
+      };
+      getCameraPermission();
+    } else if (mode === 'upload' && videoRef.current?.srcObject) {
+       const stream = videoRef.current.srcObject as MediaStream;
+       stream.getTracks().forEach(track => track.stop());
+       videoRef.current.srcObject = null;
+    }
+  }, [mode, previewUrl, toast]);
+  
   useEffect(() => {
     return () => {
       if (previewUrl) {
         URL.revokeObjectURL(previewUrl);
+      }
+      if (videoRef.current?.srcObject) {
+         const stream = videoRef.current.srcObject as MediaStream;
+         stream.getTracks().forEach(track => track.stop());
       }
     };
   }, [previewUrl]);
@@ -72,6 +128,23 @@ export function PhotoNamer() {
       setError(null);
     } else {
       setError("Please upload a valid image file.");
+    }
+  };
+  
+  const handleCapture = () => {
+    if (videoRef.current && canvasRef.current) {
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const context = canvas.getContext('2d');
+        if (context) {
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const dataUri = canvas.toDataURL('image/jpeg');
+            const blob = dataUriToBlob(dataUri);
+            const capturedFile = new File([blob], "captured-photo.jpg", { type: "image/jpeg" });
+            handleFile(capturedFile);
+        }
     }
   };
 
@@ -101,7 +174,7 @@ export function PhotoNamer() {
       handleFile(e.dataTransfer.files[0]);
     }
   };
-
+  
   const resetState = useCallback(() => {
     setFile(null);
     if (previewUrl) {
@@ -165,43 +238,64 @@ export function PhotoNamer() {
           <CardTitle className="text-3xl font-bold font-headline">
             PhotoNamer
           </CardTitle>
-          <CardDescription>Upload a student's photo and save it to the server.</CardDescription>
+          <CardDescription>Upload or take a student's photo and save it to the server.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
             {!previewUrl ? (
-              <div className="flex flex-col items-center justify-center space-y-4">
-                <Label
-                  htmlFor="photo-upload"
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  className={cn(
-                    "flex flex-col items-center justify-center w-full h-56 border-2 border-dashed rounded-lg cursor-pointer transition-colors",
-                    dragOver
-                      ? "border-primary bg-primary/10"
-                      : "border-border hover:bg-muted"
-                  )}
-                >
-                  <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center">
-                    <Upload className="w-10 h-10 mb-4 text-muted-foreground" />
-                    <p className="mb-2 text-sm text-muted-foreground">
-                      <span className="font-semibold text-primary">Click to upload</span> or drag and drop
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Any image format (JPG, PNG, GIF, etc.)
-                    </p>
-                  </div>
-                  <Input
-                    id="photo-upload"
-                    type="file"
-                    className="hidden"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    ref={fileInputRef}
-                  />
-                </Label>
-              </div>
+                <Tabs value={mode} onValueChange={(value) => setMode(value as 'upload' | 'camera')} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="upload"><Upload className="mr-2 h-4 w-4" /> Upload Photo</TabsTrigger>
+                        <TabsTrigger value="camera"><Camera className="mr-2 h-4 w-4" /> Take Photo</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="upload" className="pt-4">
+                        <div className="flex flex-col items-center justify-center space-y-4">
+                            <Label
+                            htmlFor="photo-upload"
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                            onDrop={handleDrop}
+                            className={cn(
+                                "flex flex-col items-center justify-center w-full h-56 border-2 border-dashed rounded-lg cursor-pointer transition-colors",
+                                dragOver
+                                ? "border-primary bg-primary/10"
+                                : "border-border hover:bg-muted"
+                            )}
+                            >
+                            <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center">
+                                <Upload className="w-10 h-10 mb-4 text-muted-foreground" />
+                                <p className="mb-2 text-sm text-muted-foreground">
+                                <span className="font-semibold text-primary">Click to upload</span> or drag and drop
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                Any image format (JPG, PNG, GIF, etc.)
+                                </p>
+                            </div>
+                            <Input
+                                id="photo-upload"
+                                type="file"
+                                className="hidden"
+                                accept="image/*"
+                                onChange={handleFileChange}
+                                ref={fileInputRef}
+                            />
+                            </Label>
+                        </div>
+                    </TabsContent>
+                    <TabsContent value="camera" className="pt-4">
+                        <div className="flex flex-col items-center space-y-4">
+                            <div className="w-full aspect-video rounded-lg overflow-hidden border shadow-sm bg-muted flex items-center justify-center">
+                                <video ref={videoRef} className={cn("w-full h-full object-cover", { 'hidden': !hasCameraPermission })} autoPlay muted playsInline />
+                                {hasCameraPermission === null && <p className="text-muted-foreground">Requesting camera...</p>}
+                                {hasCameraPermission === false && <p className="text-destructive text-center p-4">Camera access denied. Please enable it in your browser settings.</p>}
+                            </div>
+                            <Button onClick={handleCapture} disabled={!hasCameraPermission} className="w-full">
+                                <Camera className="mr-2 h-4 w-4" />
+                                Capture Photo
+                            </Button>
+                        </div>
+                    </TabsContent>
+                </Tabs>
             ) : (
               <div className="flex flex-col items-center space-y-4">
                 <div className="relative w-full aspect-video rounded-lg overflow-hidden border shadow-sm bg-muted">
@@ -308,6 +402,7 @@ export function PhotoNamer() {
           </form>
         </DialogContent>
       </Dialog>
+      <canvas ref={canvasRef} className="hidden" />
     </>
   );
 }
