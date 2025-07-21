@@ -16,7 +16,7 @@ const PhotoSchema = z.object({
   uploadedAt: z.string().datetime(),
 });
 
-export type Photo = z.infer<typeof PhotoSchema>;
+export type Photo = StoredPhoto;
 
 const GetPhotosOutputSchema = z.array(PhotoSchema);
 
@@ -28,12 +28,15 @@ const getPhotosFlow = ai.defineFlow(
   },
   async () => {
     const photos = getAllPhotos();
-    // The date is converted to an ISO string during serialization
-    return photos.map(p => ({...p, uploadedAt: p.uploadedAt.toISOString()})) as any;
+    // The date is converted to an ISO string for serialization and schema validation.
+    return photos.map(p => ({...p, uploadedAt: p.uploadedAt.toISOString()}));
   }
 );
 
 export async function getPhotos(): Promise<Photo[]> {
-  const result = await getPhotosFlow();
-  return result;
+  // We call the flow, but return the original data from the store
+  // so the UI gets the Date object it expects.
+  // The flow is still useful for validation and potential future logic.
+  await getPhotosFlow();
+  return getAllPhotos();
 }
