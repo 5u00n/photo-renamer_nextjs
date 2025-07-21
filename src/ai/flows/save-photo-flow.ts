@@ -9,12 +9,13 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
+import {addPhoto, Photo} from '@/ai/photo-store';
 
 const SavePhotoInputSchema = z.object({
   photoDataUri: z
     .string()
     .describe(
-      "A photo of a plant, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+      "A photo of a plant, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'"
     ),
   newName: z.string().describe('The new file name for the photo.'),
 });
@@ -33,10 +34,14 @@ const savePhotoFlow = ai.defineFlow(
     outputSchema: SavePhotoOutputSchema,
   },
   async (input) => {
-    // In a real application, you would save the file to a persistent storage like Cloud Storage.
-    // For this prototype, we'll just log the information and return a success message.
-    console.log(`Received photo to be saved as: ${input.newName}`);
-    console.log(`Photo data URI (truncated): ${input.photoDataUri.substring(0, 100)}...`);
+    const photo: Photo = {
+      name: input.newName,
+      dataUri: input.photoDataUri,
+      uploadedAt: new Date(),
+    };
+    addPhoto(photo);
+
+    console.log(`Saved photo: ${input.newName}`);
     
     return {
       success: true,
