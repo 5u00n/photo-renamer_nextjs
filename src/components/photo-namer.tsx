@@ -7,6 +7,7 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
+  CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,8 +18,21 @@ import {
   X,
   CheckCircle2,
   RotateCw,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { savePhoto, SavePhotoInput } from "@/ai/flows/save-photo-flow";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
+const fileToDataUri = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
 
 const getFileNameAndExt = (file: File): { name: string; ext: string } => {
   const lastDot = file.name.lastIndexOf(".");
@@ -35,11 +49,11 @@ export function PhotoNamer() {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [newName, setNewName] = useState<string>("");
-  const [usedNames, setUsedNames] = useState<Record<string, number>>({});
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isSaved, setIsSaved] = useState<boolean>(false);
   const [dragOver, setDragOver] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -57,6 +71,9 @@ export function PhotoNamer() {
       const url = URL.createObjectURL(selectedFile);
       setPreviewUrl(url);
       setIsSaved(false);
+      setError(null);
+    } else {
+      setError("Please upload a valid image file.");
     }
   };
 
@@ -96,49 +113,42 @@ export function PhotoNamer() {
     setNewName("");
     setIsSaved(false);
     setIsSaving(false);
+    setError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   }, [previewUrl]);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (!file || !newName) return;
 
     setIsSaving(true);
     setIsSaved(false);
+    setError(null);
 
-    const sanitizedNewName = newName.replace(/[<>:"/\\|?*]+/g, "_");
+    try {
+      const photoDataUri = await fileToDataUri(file);
+      const input: SavePhotoInput = {
+        photoDataUri,
+        newName: newName.replace(/[<>:"/\\|?*]+/g, "_"),
+      };
+      
+      const result = await savePhoto(input);
 
-    const { ext } = getFileNameAndExt(file);
-    let finalName = sanitizedNewName;
-
-    const lowerCaseName = sanitizedNewName.toLowerCase();
-    if (usedNames[lowerCaseName]) {
-      const count = usedNames[lowerCaseName];
-      finalName = `${sanitizedNewName} (${count})`;
-      setUsedNames((prev) => ({ ...prev, [lowerCaseName]: count + 1 }));
-    } else {
-      setUsedNames((prev) => ({ ...prev, [lowerCaseName]: 1 }));
-    }
-
-    const a = document.createElement("a");
-    const url = URL.createObjectURL(file);
-    a.href = url;
-    a.download = `${finalName}${ext}`;
-
-    setTimeout(() => {
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      if (result.success) {
+        setIsSaved(true);
+        setTimeout(() => {
+          resetState();
+        }, 2000);
+      } else {
+        setError(result.message || "An unknown error occurred.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save photo.");
+    } finally {
       setIsSaving(false);
-      setIsSaved(true);
-
-      setTimeout(() => {
-        resetState();
-      }, 2000);
-    }, 500);
-  }, [file, newName, usedNames, resetState]);
+    }
+  }, [file, newName, resetState]);
 
   return (
     <Card className="w-full max-w-md shadow-2xl rounded-xl">
@@ -146,7 +156,7 @@ export function PhotoNamer() {
         <CardTitle className="text-3xl font-bold font-headline">
           PhotoNamer
         </CardTitle>
-        <CardDescription>Upload a photo, rename it, and save!</CardDescription>
+        <CardDescription>Upload a photo and save it to the server!</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-6">
@@ -203,13 +213,13 @@ export function PhotoNamer() {
               </div>
 
               <div className="w-full space-y-2">
-                <Label htmlFor="new-name" className="font-medium">New file name</Label>
+                <Label htmlFor="new-name" className="font-medium">File name</Label>
                 <Input
                   id="new-name"
                   type="text"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  placeholder="Enter new name"
+                  placeholder="Enter file name"
                   disabled={isSaving || isSaved}
                   className="text-base"
                 />
@@ -243,6 +253,28 @@ export function PhotoNamer() {
           )}
         </div>
       </CardContent>
+      {(isSaved || error) && (
+        <CardFooter>
+          {isSaved && (
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertTitle>Upload Successful</AlertTitle>
+                <AlertDescription>
+                  Your photo has been saved to the server. An administrator will be able to access it.
+                </AlertDescription>
+              </Alert>
+          )}
+           {error && (
+            <Alert variant="destructive">
+              <X className="h-4 w-4" />
+              <AlertTitle>Upload Failed</AlertTitle>
+              <AlertDescription>
+                {error}
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardFooter>
+      )}
     </Card>
   );
 }
