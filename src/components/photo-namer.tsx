@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, FormEvent } from "react";
 import {
   Card,
   CardContent,
@@ -12,6 +12,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Upload,
   Save,
@@ -33,18 +41,6 @@ const fileToDataUri = (file: File): Promise<string> => {
   });
 };
 
-
-const getFileNameAndExt = (file: File): { name: string; ext: string } => {
-  const lastDot = file.name.lastIndexOf(".");
-  if (lastDot === -1) {
-    return { name: file.name, ext: "" };
-  }
-  return {
-    name: file.name.substring(0, lastDot),
-    ext: file.name.substring(lastDot),
-  };
-};
-
 export function PhotoNamer() {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -54,6 +50,8 @@ export function PhotoNamer() {
   const [dragOver, setDragOver] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isNameModalOpen, setIsNameModalOpen] = useState(false);
+  const [tempName, setTempName] = useState("");
 
   useEffect(() => {
     return () => {
@@ -66,8 +64,8 @@ export function PhotoNamer() {
   const handleFile = (selectedFile: File) => {
     if (selectedFile && selectedFile.type.startsWith("image/")) {
       setFile(selectedFile);
-      const { name } = getFileNameAndExt(selectedFile);
-      setNewName(name);
+      setTempName("");
+      setIsNameModalOpen(true);
       const url = URL.createObjectURL(selectedFile);
       setPreviewUrl(url);
       setIsSaved(false);
@@ -111,13 +109,23 @@ export function PhotoNamer() {
     }
     setPreviewUrl(null);
     setNewName("");
+    setTempName("");
     setIsSaved(false);
     setIsSaving(false);
     setError(null);
+    setIsNameModalOpen(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   }, [previewUrl]);
+
+  const handleNameSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if(tempName.trim()) {
+      setNewName(tempName.trim());
+      setIsNameModalOpen(false);
+    }
+  };
 
   const handleSave = useCallback(async () => {
     if (!file || !newName) return;
@@ -151,130 +159,155 @@ export function PhotoNamer() {
   }, [file, newName, resetState]);
 
   return (
-    <Card className="w-full max-w-md shadow-2xl rounded-xl">
-      <CardHeader className="text-center">
-        <CardTitle className="text-3xl font-bold font-headline">
-          PhotoNamer
-        </CardTitle>
-        <CardDescription>Upload a photo and save it to the server!</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-6">
-          {!previewUrl ? (
-            <div className="flex flex-col items-center justify-center space-y-4">
-              <Label
-                htmlFor="photo-upload"
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                className={cn(
-                  "flex flex-col items-center justify-center w-full h-56 border-2 border-dashed rounded-lg cursor-pointer transition-colors",
-                  dragOver
-                    ? "border-primary bg-primary/10"
-                    : "border-border hover:bg-muted"
-                )}
-              >
-                <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center">
-                  <Upload className="w-10 h-10 mb-4 text-muted-foreground" />
-                  <p className="mb-2 text-sm text-muted-foreground">
-                    <span className="font-semibold text-primary">Click to upload</span> or drag and drop
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Any image format (JPG, PNG, GIF, etc.)
-                  </p>
-                </div>
-                <Input
-                  id="photo-upload"
-                  type="file"
-                  className="hidden"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  ref={fileInputRef}
-                />
-              </Label>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center space-y-4">
-              <div className="relative w-full aspect-video rounded-lg overflow-hidden border shadow-sm bg-muted">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={previewUrl}
-                  alt="Photo preview"
-                  className="object-contain w-full h-full"
-                />
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="absolute top-2 right-2 h-8 w-8 rounded-full shadow-md"
-                  onClick={resetState}
+    <>
+      <Card className="w-full max-w-md shadow-2xl rounded-xl">
+        <CardHeader className="text-center">
+          <CardTitle className="text-3xl font-bold font-headline">
+            PhotoNamer
+          </CardTitle>
+          <CardDescription>Upload a student's photo and save it to the server.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            {!previewUrl ? (
+              <div className="flex flex-col items-center justify-center space-y-4">
+                <Label
+                  htmlFor="photo-upload"
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={cn(
+                    "flex flex-col items-center justify-center w-full h-56 border-2 border-dashed rounded-lg cursor-pointer transition-colors",
+                    dragOver
+                      ? "border-primary bg-primary/10"
+                      : "border-border hover:bg-muted"
+                  )}
                 >
-                  <X className="h-4 w-4" />
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center">
+                    <Upload className="w-10 h-10 mb-4 text-muted-foreground" />
+                    <p className="mb-2 text-sm text-muted-foreground">
+                      <span className="font-semibold text-primary">Click to upload</span> or drag and drop
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Any image format (JPG, PNG, GIF, etc.)
+                    </p>
+                  </div>
+                  <Input
+                    id="photo-upload"
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    ref={fileInputRef}
+                  />
+                </Label>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center space-y-4">
+                <div className="relative w-full aspect-video rounded-lg overflow-hidden border shadow-sm bg-muted">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={previewUrl}
+                    alt="Photo preview"
+                    className="object-contain w-full h-full"
+                  />
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className="absolute top-2 right-2 h-8 w-8 rounded-full shadow-md"
+                    onClick={resetState}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                <div className="w-full text-center">
+                  <p className="font-medium">File name:</p>
+                  <p className="text-lg font-semibold text-primary">{newName || "..."}</p>
+                </div>
+                
+                <Button
+                  onClick={handleSave}
+                  disabled={!newName || isSaving || isSaved}
+                  className={cn("w-full transition-all duration-300 text-lg py-6", 
+                    isSaved && "bg-accent hover:bg-accent/90 text-accent-foreground"
+                  )}
+                >
+                  {isSaving ? (
+                    <>
+                      <RotateCw className="mr-2 h-5 w-5 animate-spin" />
+                      Saving...
+                    </>
+                  ) : isSaved ? (
+                    <>
+                      <CheckCircle2 className="mr-2 h-5 w-5" />
+                      Saved!
+                    </>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-5 w-5" />
+                      Save Photo
+                    </>
+                  )}
                 </Button>
               </div>
-
-              <div className="w-full space-y-2">
-                <Label htmlFor="new-name" className="font-medium">File name</Label>
-                <Input
-                  id="new-name"
-                  type="text"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  placeholder="Enter file name"
-                  disabled={isSaving || isSaved}
-                  className="text-base"
-                />
-              </div>
-
-              <Button
-                onClick={handleSave}
-                disabled={!newName || isSaving || isSaved}
-                className={cn("w-full transition-all duration-300 text-lg py-6", 
-                  isSaved && "bg-accent hover:bg-accent/90 text-accent-foreground"
-                )}
-              >
-                {isSaving ? (
-                  <>
-                    <RotateCw className="mr-2 h-5 w-5 animate-spin" />
-                    Saving...
-                  </>
-                ) : isSaved ? (
-                  <>
-                    <CheckCircle2 className="mr-2 h-5 w-5" />
-                    Saved!
-                  </>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-5 w-5" />
-                    Save Photo
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
-        </div>
-      </CardContent>
-      {(isSaved || error) && (
-        <CardFooter>
-          {isSaved && (
-              <Alert>
-                <Info className="h-4 w-4" />
-                <AlertTitle>Upload Successful</AlertTitle>
+            )}
+          </div>
+        </CardContent>
+        {(isSaved || error) && (
+          <CardFooter>
+            {isSaved && (
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertTitle>Upload Successful</AlertTitle>
+                  <AlertDescription>
+                    The student photo has been saved to the server. An administrator can now access it.
+                  </AlertDescription>
+                </Alert>
+            )}
+             {error && (
+              <Alert variant="destructive">
+                <X className="h-4 w-4" />
+                <AlertTitle>Upload Failed</AlertTitle>
                 <AlertDescription>
-                  Your photo has been saved to the server. An administrator will be able to access it.
+                  {error}
                 </AlertDescription>
               </Alert>
-          )}
-           {error && (
-            <Alert variant="destructive">
-              <X className="h-4 w-4" />
-              <AlertTitle>Upload Failed</AlertTitle>
-              <AlertDescription>
-                {error}
-              </AlertDescription>
-            </Alert>
-          )}
-        </CardFooter>
-      )}
-    </Card>
+            )}
+          </CardFooter>
+        )}
+      </Card>
+
+      <Dialog open={isNameModalOpen} onOpenChange={(open) => !open && resetState()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enter Student's Name</DialogTitle>
+            <DialogDescription>
+              Please enter the student's full name. This will be used as the file name for the photo.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleNameSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="student-name" className="text-right">
+                  Name
+                </Label>
+                <Input
+                  id="student-name"
+                  value={tempName}
+                  onChange={(e) => setTempName(e.target.value)}
+                  className="col-span-3"
+                  placeholder="e.g., John Doe"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={!tempName.trim()}>Set Name</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

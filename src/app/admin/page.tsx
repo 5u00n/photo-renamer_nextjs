@@ -1,17 +1,22 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, FormEvent } from 'react';
 import { getPhotos, Photo } from '@/ai/flows/get-photos-flow';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Download, RefreshCw, ServerCrash } from 'lucide-react';
+import { ArrowLeft, Download, RefreshCw, ServerCrash, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function AdminPage() {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const fetchPhotos = async () => {
     setIsLoading(true);
@@ -28,8 +33,10 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
-    fetchPhotos();
-  }, []);
+    if (isAuthenticated) {
+      fetchPhotos();
+    }
+  }, [isAuthenticated]);
 
   const handleDownload = (photo: Photo) => {
     const link = document.createElement('a');
@@ -40,6 +47,48 @@ export default function AdminPage() {
     link.click();
     document.body.removeChild(link);
   };
+  
+  const handlePasswordSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (password === 'Ssuren78626@@') {
+      setIsAuthenticated(true);
+      setAuthError(null);
+    } else {
+      setAuthError('Incorrect password. Please try again.');
+    }
+  };
+
+  if (!isAuthenticated) {
+    return (
+        <div className="flex items-center justify-center min-h-screen bg-muted/40">
+            <Card className="w-full max-w-sm">
+                <CardHeader>
+                    <CardTitle className="text-2xl flex items-center gap-2">
+                        <Lock className="w-6 h-6"/> Admin Access
+                    </CardTitle>
+                    <CardContent className="pt-4 px-0 pb-0">
+                        <form onSubmit={handlePasswordSubmit} className="space-y-4">
+                            <Input 
+                                type="password" 
+                                placeholder="Enter password" 
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                            />
+                            {authError && (
+                                <Alert variant="destructive" className="p-2 text-sm">
+                                  <AlertDescription>{authError}</AlertDescription>
+                                </Alert>
+                            )}
+                            <Button type="submit" className="w-full">
+                                Unlock
+                            </Button>
+                        </form>
+                    </CardContent>
+                </CardHeader>
+            </Card>
+        </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-muted/40">
