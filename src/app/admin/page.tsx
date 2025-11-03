@@ -62,7 +62,7 @@ export default function AdminPage() {
 
   const handlePasswordSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (password === 'Ssuren78626@@') {
+    if (password === 'Ssuren78626') {
       setIsAuthenticated(true);
       setAuthError(null);
     } else {
