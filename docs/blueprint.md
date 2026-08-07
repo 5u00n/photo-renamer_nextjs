@@ -1,20 +1,59 @@
 # **App Name**: PhotoNamer
 
-## Core Features:
+## Status: v1.0.0 — Production Prototype
 
-- Photo Upload: Allow users to upload photos from their device.
-- Name Entry Field: Provide an input field for the user to enter the desired new name for the photo.
-- Photo Renaming: Rename the photo file based on the user-entered name.
-- ID assistance: Automatically provide an incremental ID number if the filename is the same. The ID will use the first available unused ID. (For example, if 'Image 1.jpg' and 'Image 3.jpg' exist, it will try and suggest 'Image 2.jpg' for the user).
-- Preview Display: Display a preview of the uploaded photo and the new name.
-- Photo Saving: Save the renamed photo to the user's downloads folder or a specified directory.
+---
 
-## Style Guidelines:
+## Core Features
 
-- Primary color: Light, desaturated blue (#ADD8E6) to evoke calmness and reliability.
-- Background color: Very light gray (#F5F5F5) to provide a clean and neutral backdrop.
-- Accent color: Soft green (#90EE90) to signal successful upload and renaming.
-- Font: 'Inter', a grotesque-style sans-serif suitable for body and headlines
-- Simple, clear icons for upload, save, and preview actions.
-- Clean and intuitive layout with a prominent upload button and a clear name entry field.
-- Subtle animations to provide feedback during upload and renaming processes.
+| Feature | Status | Notes |
+|---|---|---|
+| Photo Upload (drag-and-drop) | ✅ Implemented | Supports all image formats |
+| Camera Capture (front/back) | ✅ Implemented | Detects multiple cameras |
+| Name Entry Dialog | ✅ Implemented | Opens after file select/capture |
+| Preview Display | ✅ Implemented | Shown before saving |
+| Auto-Increment Duplicate Names | ✅ Implemented | e.g., `John Doe` → `John Doe 2` |
+| Photo Saving (server) | ✅ Implemented | Via `POST /api/photos` |
+| Admin Dashboard | ✅ Implemented | Requires password |
+| Admin Auth (server-side) | ✅ Implemented | Uses `ADMIN_PASSWORD` env var |
+| Download Photo | ✅ Implemented | Downloads from data URI |
+| Delete Photo | ✅ Implemented | With confirmation dialog |
+| Photo Saving (persistent DB) | 🔲 Not Implemented | See [Future Roadmap](#future-roadmap) |
+| ID Assistance (auto-increment) | ✅ Implemented | Handled server-side |
+
+---
+
+## Style Guidelines
+
+- **Primary color**: Light, desaturated blue (`--primary: 204 45% 79%`) for calmness and reliability
+- **Background color**: Very light gray (`--background: 0 0% 96.1%`) for clean, neutral backdrop
+- **Accent color**: Soft green (`--accent: 120 73% 75%`) to signal successful upload and renaming
+- **Font**: `Inter` — grotesque-style sans-serif for both body and headlines
+- **Dark mode**: Supported via CSS custom properties (`.dark` class)
+- **Icons**: Lucide React — simple, clear, consistent
+- **Layout**: Centered card design for upload; grid layout for admin dashboard
+- **Animations**: Spinner on save, fade/transition on success state
+
+---
+
+## Architecture
+
+See [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) for full technical details.
+
+- **Framework**: Next.js 16 (Pages Router)
+- **API**: REST routes at `src/pages/api/`
+- **Storage**: In-memory array (prototype — not persistent)
+- **Auth**: Server-side password via `ADMIN_PASSWORD` env var
+
+---
+
+## Future Roadmap
+
+1. **Persistent storage**: Migrate `photo-store.ts` to Firebase Firestore (metadata) + Firebase Storage (images)
+2. **Real authentication**: Replace stateless password check with session cookies or JWT
+3. **Rate limiting**: Protect API routes from abuse
+4. **Pagination**: Paginate admin dashboard (cursor-based)
+5. **Bulk download**: ZIP export of all photos
+6. **Search**: Filter admin dashboard by student name
+7. **Upload progress**: WebSocket or SSE-based progress for large files
+8. **Class/Batch organization**: Group photos by class, year, section

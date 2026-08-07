@@ -32,7 +32,6 @@ import {
   RefreshCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { savePhoto, SavePhotoInput } from "@/ai/flows/save-photo-flow";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 
@@ -58,7 +57,11 @@ const dataUriToBlob = (dataURI: string) => {
 
 type FacingMode = "user" | "environment";
 
-export function PhotoNamer() {
+interface PhotoNamerProps {
+  onPhotoSaved?: () => void;
+}
+
+export function PhotoNamer({ onPhotoSaved }: PhotoNamerProps) {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [newName, setNewName] = useState<string>("");
@@ -80,7 +83,6 @@ export function PhotoNamer() {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Stop camera stream on unmount
     return () => {
       if (videoRef.current?.srcObject) {
         const stream = videoRef.current.srcObject as MediaStream;
@@ -96,19 +98,17 @@ export function PhotoNamer() {
       return;
     }
     try {
-      // Check for multiple cameras
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoInputs = devices.filter(
         (device) => device.kind === "videoinput"
       );
       setHasMultipleCameras(videoInputs.length > 1);
 
-      // Stop any existing stream
       if (videoRef.current?.srcObject) {
         const stream = videoRef.current.srcObject as MediaStream;
         stream.getTracks().forEach((track) => track.stop());
       }
-      
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: facingMode },
       });
@@ -116,8 +116,8 @@ export function PhotoNamer() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
-    } catch (error) {
-      console.error("Error accessing camera:", error);
+    } catch (err) {
+      console.error("Error accessing camera:", err);
       setHasCameraPermission(false);
       toast({
         variant: "destructive",
@@ -240,27 +240,41 @@ export function PhotoNamer() {
 
     try {
       const photoDataUri = await fileToDataUri(file);
-      const input: SavePhotoInput = {
-        photoDataUri,
-        newName: newName.replace(/[<>:"/\\|?*]+/g, "_"),
-      };
 
-      const result = await savePhoto(input);
+      const res = await fetch("/api/photos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          photoDataUri,
+          newName: newName.trim(),
+        }),
+      });
 
-      if (result.success) {
+      const result = await res.json();
+
+      if (res.ok && result.success) {
+        if (result.photo?.name && result.photo.name !== newName) {
+          setNewName(result.photo.name);
+        }
         setIsSaved(true);
+        if (onPhotoSaved) {
+          onPhotoSaved();
+        }
         setTimeout(() => {
           resetState();
         }, 2000);
       } else {
-        setError(result.message || "An unknown error occurred.");
+        const details = result.details
+          ? Object.values(result.details).flat().join(" ")
+          : "";
+        setError(result.error || details || "An unknown error occurred.");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save photo.");
     } finally {
       setIsSaving(false);
     }
-  }, [file, newName, resetState]);
+  }, [file, newName, resetState, onPhotoSaved]);
 
   const toggleCamera = () => {
     setFacingMode((prev) => (prev === "user" ? "environment" : "user"));
@@ -268,13 +282,13 @@ export function PhotoNamer() {
 
   return (
     <>
-      <Card className="w-full max-w-md shadow-2xl rounded-xl">
+      <Card className="w-full max-w-md shadow-2xl rounded-xl border">
         <CardHeader className="text-center">
           <CardTitle className="text-3xl font-bold font-headline">
             PhotoNamer
           </CardTitle>
           <CardDescription>
-            Upload or take a student's photo and save it to the server.
+            Upload or take a student&apos;s photo and save it to your account.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -318,7 +332,7 @@ export function PhotoNamer() {
                           or drag and drop
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Any image format (JPG, PNG, GIF, etc.)
+                          Any image format (JPG, PNG, GIF, WebP, etc.)
                         </p>
                       </div>
                       <Input
@@ -345,28 +359,36 @@ export function PhotoNamer() {
                         playsInline
                       />
                       {hasCameraPermission === null && (
-                        <p className="text-muted-foreground">
+                        <p className="text-muted-foreground text-sm">
                           Requesting camera...
                         </p>
                       )}
                       {hasCameraPermission === false && (
-                        <p className="text-destructive text-center p-4">
-                          Camera access denied. Please enable it in your browser
-                          settings.
+                        <p className="text-destructive text-center p-4 text-sm">
+                          Camera access denied. Please enable it in browser settings.
                         </p>
                       )}
                     </div>
-                     <div className="flex gap-2 w-full">
-                       <Button onClick={handleCapture} disabled={!hasCameraPermission} className="flex-grow">
-                         <Camera className="mr-2 h-4 w-4" />
-                         Capture Photo
-                       </Button>
-                       {hasMultipleCameras && (
-                         <Button onClick={toggleCamera} variant="outline" size="icon" title="Reverse Camera">
-                           <RefreshCcw className="h-4 w-4" />
-                         </Button>
-                       )}
-                     </div>
+                    <div className="flex gap-2 w-full">
+                      <Button
+                        onClick={handleCapture}
+                        disabled={!hasCameraPermission}
+                        className="flex-grow"
+                      >
+                        <Camera className="mr-2 h-4 w-4" />
+                        Capture Photo
+                      </Button>
+                      {hasMultipleCameras && (
+                        <Button
+                          onClick={toggleCamera}
+                          variant="outline"
+                          size="icon"
+                          title="Reverse Camera"
+                        >
+                          <RefreshCcw className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </TabsContent>
               </Tabs>
@@ -390,7 +412,7 @@ export function PhotoNamer() {
                 </div>
 
                 <div className="w-full text-center">
-                  <p className="font-medium">File name:</p>
+                  <p className="font-medium text-sm text-muted-foreground">Target Photo Name:</p>
                   <p className="text-lg font-semibold text-primary">
                     {newName || "..."}
                   </p>
@@ -412,7 +434,7 @@ export function PhotoNamer() {
                   ) : isSaved ? (
                     <>
                       <CheckCircle2 className="mr-2 h-5 w-5" />
-                      Saved!
+                      Saved to Database!
                     </>
                   ) : (
                     <>
@@ -432,8 +454,7 @@ export function PhotoNamer() {
                 <Info className="h-4 w-4" />
                 <AlertTitle>Upload Successful</AlertTitle>
                 <AlertDescription>
-                  The student photo has been saved to the server. An
-                  administrator can now access it.
+                  The student photo has been saved to your account in the SQLite database.
                 </AlertDescription>
               </Alert>
             )}
@@ -454,10 +475,9 @@ export function PhotoNamer() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Enter Student's Name</DialogTitle>
+            <DialogTitle>Enter Student&apos;s Name</DialogTitle>
             <DialogDescription>
-              Please enter the student's full name. This will be used as the
-              file name for the photo.
+              Please enter the student&apos;s full name. This will be used as the photo identifier.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleNameSubmit}>
