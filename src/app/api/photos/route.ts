@@ -44,11 +44,11 @@ export async function GET(req: NextRequest) {
       if (session.role !== 'admin') {
         return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
       }
-      const allPhotos = getAllPhotosWithOwners();
+      const allPhotos = await getAllPhotosWithOwners();
       return NextResponse.json(allPhotos);
     }
 
-    const userPhotos = getPhotosByUserId(session.userId);
+    const userPhotos = await getPhotosByUserId(session.userId);
     return NextResponse.json(userPhotos);
   } catch (error) {
     console.error('[API GET /api/photos] Error:', error);
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const savedPhoto = addPhotoToDb(session.userId, newName, photoDataUri);
+    const savedPhoto = await addPhotoToDb(session.userId, newName, photoDataUri);
 
     return NextResponse.json(
       {

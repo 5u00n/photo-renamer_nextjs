@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { username, password } = validation.data;
-    const user = findUserByUsername(username.trim().toLowerCase());
+    const user = await findUserByUsername(username.trim().toLowerCase());
 
     if (!user) {
       return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });

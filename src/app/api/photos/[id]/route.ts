@@ -20,7 +20,7 @@ export async function DELETE(
     }
 
     const isAdmin = session.role === 'admin';
-    const deleted = deletePhotoById(photoId, session.userId, isAdmin);
+    const deleted = await deletePhotoById(photoId, session.userId, isAdmin);
 
     if (!deleted) {
       return NextResponse.json(

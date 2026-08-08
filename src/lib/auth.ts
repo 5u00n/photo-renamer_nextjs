@@ -41,7 +41,7 @@ export async function verifySession(): Promise<SessionPayload | null> {
     const payload = verified.payload as unknown as SessionPayload;
 
     // Double check user still exists in database
-    const user = findUserById(payload.userId);
+    const user = await findUserById(payload.userId);
     if (!user) return null;
 
     return {

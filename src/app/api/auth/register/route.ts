@@ -28,13 +28,13 @@ export async function POST(req: NextRequest) {
     const { username, password } = validation.data;
     const normalizedUsername = username.trim().toLowerCase();
 
-    const existingUser = findUserByUsername(normalizedUsername);
+    const existingUser = await findUserByUsername(normalizedUsername);
     if (existingUser) {
       return NextResponse.json({ error: 'Username is already taken' }, { status: 409 });
     }
 
     const passwordHash = bcrypt.hashSync(password, 10);
-    const newUser = createUser(normalizedUsername, passwordHash, 'user');
+    const newUser = await createUser(normalizedUsername, passwordHash, 'user');
 
     await createSession({
       userId: newUser.id,
