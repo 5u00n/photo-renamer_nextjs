@@ -40,6 +40,10 @@ next-env.d.ts
 .genkit/*
 .env*
 
+# cloudflare
+.open-next
+.wrangler
+
 # firebase
 firebase-debug.log
 firestore-debug.log
