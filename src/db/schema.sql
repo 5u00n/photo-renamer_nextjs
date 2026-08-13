@@ -14,3 +14,8 @@ CREATE TABLE IF NOT EXISTS photos (
   uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+-- Seed default admin user (username: admin, password: admin123)
+INSERT OR IGNORE INTO users (id, username, password_hash, role)
+VALUES (1, 'admin', '$2b$10$xZ/Jn7b4Ou9IfO6x.6ukMOjbgxn7SYSRvq0TW9w3M9SWe7vF5wjEW', 'admin');
+

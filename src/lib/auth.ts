@@ -2,9 +2,7 @@ import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { findUserById } from '@/db';
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'photo-renamer-jwt-secret-key-change-in-production-2026'
-);
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 
 export interface SessionPayload {
   userId: number;
@@ -12,12 +10,31 @@ export interface SessionPayload {
   role: 'user' | 'admin';
 }
 
+async function getJwtSecret(): Promise<Uint8Array> {
+  let secret = process.env.JWT_SECRET;
+  if (!secret) {
+    try {
+      const { env } = await getCloudflareContext({ async: true });
+      const cfEnv = env as any;
+      if (cfEnv?.JWT_SECRET) {
+        secret = cfEnv.JWT_SECRET as string;
+      }
+    } catch (e) {
+      // Fallback
+    }
+  }
+  return new TextEncoder().encode(
+    secret || 'photo-renamer-jwt-secret-key-change-in-production-2026'
+  );
+}
+
 export async function createSession(payload: SessionPayload): Promise<string> {
+  const jwtSecret = await getJwtSecret();
   const token = await new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('7d')
-    .sign(JWT_SECRET);
+    .sign(jwtSecret);
 
   const cookieStore = await cookies();
   cookieStore.set('session', token, {
@@ -37,7 +54,8 @@ export async function verifySession(): Promise<SessionPayload | null> {
     const token = cookieStore.get('session')?.value;
     if (!token) return null;
 
-    const verified = await jwtVerify(token, JWT_SECRET);
+    const jwtSecret = await getJwtSecret();
+    const verified = await jwtVerify(token, jwtSecret);
     const payload = verified.payload as unknown as SessionPayload;
 
     // Double check user still exists in database
